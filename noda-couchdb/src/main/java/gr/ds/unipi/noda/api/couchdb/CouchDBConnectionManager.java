@@ -2,8 +2,9 @@ package gr.ds.unipi.noda.api.couchdb;
 
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbConnectionManager;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbConnector;
+import gr.ds.unipi.noda.api.couchdb.restClient.CouchDBClient;
 
-final class CouchDBConnectionManager extends NoSqlDbConnectionManager<Object> {
+final class CouchDBConnectionManager extends NoSqlDbConnectionManager<CouchDBClient> {
 
     private static final CouchDBConnectionManager INSTANCE = new CouchDBConnectionManager();
 

@@ -1,6 +1,7 @@
 package gr.ds.unipi.noda.api.client.couchdb;
 
 import gr.ds.unipi.noda.api.client.NoSqlDbSystem;
+import gr.ds.unipi.noda.api.couchdb.CouchDBConnectionFactory;
 import gr.ds.unipi.noda.api.couchdb.CouchDBConnector;
 
 public class CouchDBSystem extends NoSqlDbSystem {
@@ -40,7 +41,7 @@ public class CouchDBSystem extends NoSqlDbSystem {
     }
 
     private CouchDBSystem(Builder builder) {
-        super(builder, null);
-        connector = CouchDBConnector.newCouchDBConnector(getAddresses(),builder.username,builder.password,builder.database);
+        super(builder, new CouchDBConnectionFactory());
+        connector = CouchDBConnector.newCouchDBConnector(getAddresses(), builder.username, builder.password, builder.database);
     }
 }

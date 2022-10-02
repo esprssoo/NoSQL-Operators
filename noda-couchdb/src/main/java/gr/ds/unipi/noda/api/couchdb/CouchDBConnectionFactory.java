@@ -28,7 +28,7 @@ public final class CouchDBConnectionFactory extends NoSqlConnectionFactory {
 
     @Override
     public NoSqlDbOperators noSqlDbOperators(NoSqlDbConnector connector, String s, SparkSession sparkSession) {
-        return null;
+        return CouchDBOperators.newCouchDBOperators(connector, s, sparkSession);
     }
 
     @Override

@@ -9,18 +9,23 @@ import static gr.ds.unipi.noda.api.core.operators.FilterOperators.*;
 public class CouchDBSystemTest {
 
     @Test
-    public void mongodbTest() {
+    public void couchDbTest() {
+        NoSqlDbSystem noSqlDbSystem = NoSqlDbSystem.CouchDB()
+                .Builder("admin", "password", "")
+                .host("localhost")
+                .port(5984)
+                .build();
 
-        NoSqlDbSystem noSqlDbSystem = NoSqlDbSystem.CouchDB().Builder("myUserAdmin","myPass","database").host("localhost").port(1234).build();
-        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("collection/table");
+        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("animals");
 
-        System.out.println(noSqlDbOperators.filter(gte("myField",4)).count());
+        System.out.println(noSqlDbOperators.filter(gte("weight", 151)).count());
 
-        System.out.println(noSqlDbOperators.filter(eq("myField",4)).count());
+        System.out.println(noSqlDbOperators.filter(eq("weight", 300)).count());
 
-        System.out.println(noSqlDbOperators.filter(or(gte("myField",5), eq("myField",4))).count());
+        System.out.println(noSqlDbOperators.filter(or(gte("weight", 300), eq("weight", 150)))
+                                   .count());
 
         noSqlDbSystem.closeConnection();
-
     }
+
 }
