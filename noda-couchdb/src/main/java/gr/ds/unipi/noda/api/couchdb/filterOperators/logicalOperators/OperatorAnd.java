@@ -12,4 +12,9 @@ final class OperatorAnd extends LogicalOperator {
         return new OperatorAnd(filterOperator1, filterOperator2, filterOperators);
     }
 
+    @Override
+    protected String operatorName() {
+        return "$and";
+    }
+
 }
