@@ -10,4 +10,9 @@ final class OperatorCount extends AggregateOperator {
         return new OperatorCount("");
     }
 
+    @Override
+    protected String reduceFunction() {
+        // TODO: _stats function REQUIRES numeric values only
+        return null;
+    }
 }

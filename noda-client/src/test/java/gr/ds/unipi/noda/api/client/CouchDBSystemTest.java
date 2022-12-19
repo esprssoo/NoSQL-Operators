@@ -1,26 +1,27 @@
 package gr.ds.unipi.noda.api.client;
 
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
-import org.apache.spark.sql.SparkSession;
 import org.junit.Test;
 
-import static gr.ds.unipi.noda.api.core.operators.FilterOperators.*;
+import static gr.ds.unipi.noda.api.core.operators.AggregateOperators.sum;
+import static gr.ds.unipi.noda.api.core.operators.FilterOperators.gte;
 
 public class CouchDBSystemTest {
-
     @Test
-    public void mongodbTest() {
+    public void couchdbTest() {
+        NoSqlDbSystem noSqlDbSystem = NoSqlDbSystem.CouchDB().Builder("admin", "password").host(
+                "localhost").port(5984).build();
 
-        NoSqlDbSystem noSqlDbSystem = NoSqlDbSystem.CouchDB().Builder("myUserAdmin","myPass","database").host("localhost").port(1234).build();
-        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("collection/table");
+        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("animals");
 
-        System.out.println(noSqlDbOperators.filter(gte("myField",4)).count());
+        //        Optional<Double> maxWeight = noSqlDbOperators.filter(lte("weight", 500)).sum("weight");
+        //        System.out.println(maxWeight.isPresent() ? maxWeight.get() : 0);
 
-        System.out.println(noSqlDbOperators.filter(eq("myField",4)).count());
+        //        noSqlDbOperators.filter(lte("weight", 500)).limit(1).printScreen();
+        //        System.out.println(noSqlDbOperators.filter(lte("weight", 500)).groupBy("name").count());
 
-        System.out.println(noSqlDbOperators.filter(or(gte("myField",5), eq("myField",4))).count());
+        System.out.println(noSqlDbOperators.filter(gte("weight", 100)).max("weight"));
 
         noSqlDbSystem.closeConnection();
-
     }
 }

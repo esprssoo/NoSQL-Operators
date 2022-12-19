@@ -10,4 +10,8 @@ public class OperatorCountNonNull extends AggregateOperator {
         return new OperatorCountNonNull(fieldName);
     }
 
+    @Override
+    protected String reduceFunction() {
+        return null;
+    }
 }

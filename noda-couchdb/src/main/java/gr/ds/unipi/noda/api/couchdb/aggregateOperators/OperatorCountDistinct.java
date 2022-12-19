@@ -10,4 +10,8 @@ public class OperatorCountDistinct extends AggregateOperator {
         return new OperatorCountDistinct(fieldName);
     }
 
+    @Override
+    protected String reduceFunction() {
+        return null;
+    }
 }
