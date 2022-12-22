@@ -10,10 +10,7 @@ public class CouchDBSystem extends NoSqlDbSystem {
 
     private CouchDBSystem(Builder builder) {
         super(builder, new CouchDBConnectionFactory());
-        connector = CouchDBConnector.newCouchDBConnector(getAddresses(),
-                builder.username,
-                builder.password
-        );
+        connector = CouchDBConnector.newCouchDBConnector(getAddresses(), builder.username, builder.password);
     }
 
     @Override

@@ -3,7 +3,6 @@ package gr.ds.unipi.noda.api.client;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
 import org.junit.Test;
 
-import static gr.ds.unipi.noda.api.core.operators.AggregateOperators.sum;
 import static gr.ds.unipi.noda.api.core.operators.FilterOperators.gte;
 
 public class CouchDBSystemTest {
@@ -20,7 +19,7 @@ public class CouchDBSystemTest {
         //        noSqlDbOperators.filter(lte("weight", 500)).limit(1).printScreen();
         //        System.out.println(noSqlDbOperators.filter(lte("weight", 500)).groupBy("name").count());
 
-        System.out.println(noSqlDbOperators.filter(gte("weight", 100)).max("weight"));
+        noSqlDbOperators.filter(gte("weight", 100)).printScreen();
 
         noSqlDbSystem.closeConnection();
     }

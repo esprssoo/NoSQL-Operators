@@ -1,26 +1,16 @@
 package gr.ds.unipi.noda.api.couchdb.objects;
 
 import java.util.List;
-import java.util.Map;
 
-public class ViewResponse<V> {
-
+public class ViewResponse {
     public int total_rows;
     public int offset;
-    public List<ViewRow<V>> rows;
+    public List<Row> rows;
 
-    public static class ViewRow<V> {
+    static class Row {
         public String id;
-        public List<Object> key;
-        public V value;
-        public Map<Object, Object> doc;
-    }
-
-    public static class Stats {
-        public Double sum;
-        public Integer count;
-        public Double min;
-        public Double max;
-        public Double sumsqr;
+        public Object key;
+        public Object value;
+        public Object doc;
     }
 }

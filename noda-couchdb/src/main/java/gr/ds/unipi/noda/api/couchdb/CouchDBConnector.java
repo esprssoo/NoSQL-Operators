@@ -2,118 +2,51 @@ package gr.ds.unipi.noda.api.couchdb;
 
 import com.google.gson.Gson;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbConnector;
+import gr.ds.unipi.noda.api.couchdb.objects.DesignDoc;
+import gr.ds.unipi.noda.api.couchdb.objects.View;
 import gr.ds.unipi.noda.api.couchdb.objects.ViewResponse;
-import org.apache.hc.client5.http.ContextBuilder;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.protocol.HttpClientContext;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.message.BasicHeader;
-import org.apache.hc.core5.net.URIBuilder;
+import okhttp3.Credentials;
+import okhttp3.Headers;
+import okhttp3.HttpUrl;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector> {
-    private static final Gson GSON = new Gson();
-    private final CloseableHttpClient httpClient;
-    private final HttpHost httpHost;
-    private final HttpClientContext httpContext;
+public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector.CouchDBConnection> {
+    private final static MediaType JSON = MediaType.get("application/json; charset=utf-8");
+    private final static Gson GSON = new Gson();
+    private static OkHttpClient CLIENT;
+    private final HttpUrl serverUrl;
+    private final String credentials;
 
-    private CouchDBConnector(CloseableHttpClient httpClient, HttpHost httpHost, HttpClientContext context) {
-        this.httpClient = httpClient;
-        this.httpHost = httpHost;
-        this.httpContext = context;
+    private CouchDBConnector(HttpUrl serverUrl, String credentials) {
+        this.serverUrl = serverUrl;
+        this.credentials = credentials;
     }
 
     public static CouchDBConnector newCouchDBConnector(List<Map.Entry<String, Integer>> addresses, String username, String password) {
         String host = addresses.get(0).getKey();
         int port = addresses.get(0).getValue();
 
-        HttpHost httpHost = new HttpHost(host, port);
+        HttpUrl serverUrl = new HttpUrl.Builder().scheme("http").host(host).port(port).build();
+        String credentials = Credentials.basic(username, password);
 
-        HttpClientContext context = ContextBuilder
-                .create()
-                .preemptiveBasicAuth(httpHost,
-                        new UsernamePasswordCredentials(username, password.toCharArray())
-                )
-                .build();
-
-        CloseableHttpClient httpClient = HttpClients
-                .custom()
-                .setDefaultHeaders(Collections.singletonList(new BasicHeader(HttpHeaders.CONTENT_TYPE,
-                        "application/json"
-                )))
-                .build();
-
-        return new CouchDBConnector(httpClient, httpHost, context);
-    }
-
-    public <T> ViewResponse<T> view(String database, String viewName, boolean reduce, int limit, Type type)
-    throws IOException {
-        HttpPost post = new HttpPost(resolveUri(database, "_design/noda/_view", viewName));
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("reduce", reduce);
-        body.put("group", reduce);
-        body.put("include_docs", !reduce);
-        if (limit >= 0) {
-            body.put("limit", limit);
-        }
-
-        post.setEntity(new StringEntity(GSON.toJson(body)));
-        return httpClient.execute(post, httpContext, res -> {
-            String str = EntityUtils.toString(res.getEntity());
-            // System.out.println(str);
-            return GSON.fromJson(str, type);
-        });
-    }
-
-    public Optional<DesignDoc> getInternalDesignDoc(String database) throws IOException {
-        URI uri = resolveUri(database, "_design", "noda");
-        return httpClient.execute(new HttpGet(uri), httpContext, res -> {
-            if (res.getCode() == 404) {
-                return Optional.empty();
-            }
-
-            return Optional.of(new Gson().fromJson(EntityUtils.toString(res.getEntity()),
-                    DesignDoc.class
-            ));
-        });
-    }
-
-    public void putInternalDesignDoc(String database, DesignDoc designDoc) throws Exception {
-        URI uri = resolveUri(database, "_design", "noda");
-        HttpPut req = new HttpPut(uri);
-
-        req.setEntity(new StringEntity(new Gson().toJson(designDoc)));
-
-        httpClient.execute(req, httpContext, res -> {
-            String body = new Gson().toJson(EntityUtils.toString(res.getEntity()));
-            if (res.getCode() != 201) {
-                throw new RuntimeException(body);
-            }
-            return body;
-        });
+        return new CouchDBConnector(serverUrl, credentials);
     }
 
     @Override
-    public CouchDBConnector createConnection() {
-        return this;
+    public CouchDBConnection createConnection() {
+        CLIENT = new OkHttpClient.Builder().authenticator((route, response) -> response.request()
+                .newBuilder()
+                .header("authorization", credentials)
+                .build()).build();
+        return new CouchDBConnection(serverUrl);
     }
 
     @Override
@@ -126,31 +59,102 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
         return false;
     }
 
-    private URI resolveUri(String... paths) {
-        URIBuilder builder = new URIBuilder()
-                .setScheme(httpHost.getSchemeName())
-                .setHost(httpHost.getHostName())
-                .setPort(httpHost.getPort());
+    static class CouchDBConnection {
+        private final HttpUrl serverUrl;
+        private final Headers headers;
 
-        for (String path : paths) {
-            builder.appendPath(path);
+        CouchDBConnection(HttpUrl serverUrl) {
+            this.serverUrl = serverUrl;
+            this.headers = new Headers.Builder().add("accept", "application/json").build();
         }
 
-        try {
-            return builder.build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+        public ViewResponse execute(CouchDBView view) {
+            View viewObject = view.createViewObject();
+            // Create or update the internal design document if it doesn't exist
+            updateDesignDoc(view.getDatabase(), viewObject);
+
+            HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda", "_view", viewObject.getName());
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("reduce", view.isReduce());
+            body.put("include_docs", !view.isReduce());
+            body.put("group", view.isGroup());
+            int limit = view.getLimit();
+            if (limit >= 0) {
+                body.put("limit", view.getLimit());
+            }
+
+            Request request = new Request.Builder().url(url)
+                    .headers(headers)
+                    .post(RequestBody.create(GSON.toJson(body), JSON))
+                    .build();
+
+            try (Response res = CLIENT.newCall(request).execute()) {
+                assert res.body() != null;
+
+                if (res.code() != 200) {
+                    System.err.println(res.body().string());
+                    return null;
+                }
+
+                return GSON.fromJson(res.body().charStream(), ViewResponse.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
         }
-    }
 
-    static class DesignDoc {
-        public String _id;
-        public String _rev;
-        public Map<String, Map<String, String>> views;
+        private DesignDoc getDesignDoc(String db) {
+            HttpUrl url = resolveUrl(db, "_design", "noda");
 
-        DesignDoc(String viewName, Map<String, String> view) {
-            views = new HashMap<>();
-            views.put(viewName, view);
+            Request request = new Request.Builder().url(url).headers(headers).get().build();
+
+            try (Response res = CLIENT.newCall(request).execute()) {
+                if (res.code() != 200) {
+                    return null;
+                }
+
+                assert res.body() != null;
+                return GSON.fromJson(res.body().charStream(), DesignDoc.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        private void updateDesignDoc(String db, View view) {
+            HttpUrl url = resolveUrl(db, "_design", "noda");
+
+            DesignDoc designDoc = getDesignDoc(db);
+            if (designDoc == null) {
+                designDoc = new DesignDoc(view);
+            } else if (!designDoc.views.containsKey(view.getName())) {
+                designDoc.views.put(view.getName(), view);
+            } else {
+                return;
+            }
+
+            Request request = new Request.Builder().url(url)
+                    .headers(headers)
+                    .put(RequestBody.create(GSON.toJson(designDoc), JSON))
+                    .build();
+
+            try (Response res = CLIENT.newCall(request).execute()) {
+                if (res.code() != 201) {
+                    assert res.body() != null;
+                    throw new RuntimeException("Failed to create design document. " + res.body().string());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        private HttpUrl resolveUrl(String... paths) {
+            HttpUrl.Builder url = serverUrl.newBuilder();
+            for (String path : paths) {
+                url.addPathSegment(path);
+            }
+            return url.build();
         }
     }
 }
