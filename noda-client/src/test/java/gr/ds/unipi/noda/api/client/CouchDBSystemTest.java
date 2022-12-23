@@ -4,6 +4,8 @@ import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
 import org.junit.Test;
 
 import static gr.ds.unipi.noda.api.core.operators.FilterOperators.gte;
+import static gr.ds.unipi.noda.api.core.operators.SortOperators.asc;
+import static gr.ds.unipi.noda.api.core.operators.SortOperators.desc;
 
 public class CouchDBSystemTest {
     @Test
@@ -19,7 +21,9 @@ public class CouchDBSystemTest {
         //        noSqlDbOperators.filter(lte("weight", 500)).limit(1).printScreen();
         //        System.out.println(noSqlDbOperators.filter(lte("weight", 500)).groupBy("name").count());
 
-        noSqlDbOperators.filter(gte("weight", 100)).printScreen();
+        noSqlDbOperators.filter(gte("weight", 100)).distinct("name").printScreen();
+        noSqlDbOperators.filter(gte("weight", 100)).sort(asc("height")).printScreen();
+        noSqlDbOperators.filter(gte("weight", 100)).sort(desc("height")).printScreen();
 
         noSqlDbSystem.closeConnection();
     }

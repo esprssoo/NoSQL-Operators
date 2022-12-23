@@ -3,7 +3,6 @@ package gr.ds.unipi.noda.api.couchdb;
 import com.google.gson.Gson;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbConnector;
 import gr.ds.unipi.noda.api.couchdb.objects.DesignDoc;
-import gr.ds.unipi.noda.api.couchdb.objects.View;
 import gr.ds.unipi.noda.api.couchdb.objects.ViewResponse;
 import okhttp3.Credentials;
 import okhttp3.Headers;
@@ -14,6 +13,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,17 +68,24 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             this.headers = new Headers.Builder().add("accept", "application/json").build();
         }
 
-        public ViewResponse execute(CouchDBView view) {
-            View viewObject = view.createViewObject();
-            // Create or update the internal design document if it doesn't exist
-            updateDesignDoc(view.getDatabase(), viewObject);
+        public ViewResponse execute(CouchDBView.Builder viewBuilder) {
+            CouchDBView view = viewBuilder.build();
 
-            HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda", "_view", viewObject.getName());
+            try {
+                // Create or update the internal design document if it doesn't exist
+                updateDesignDoc(view);
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+
+            HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda", "_view", view.getName());
 
             Map<String, Object> body = new HashMap<>();
             body.put("reduce", view.isReduce());
             body.put("include_docs", !view.isReduce());
             body.put("group", view.isGroup());
+            body.put("descending", view.isDescending());
             int limit = view.getLimit();
             if (limit >= 0) {
                 body.put("limit", view.getLimit());
@@ -98,13 +105,13 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
                 }
 
                 return GSON.fromJson(res.body().charStream(), ViewResponse.class);
-            } catch (Exception e) {
+            } catch (IOException e) {
                 e.printStackTrace();
                 return null;
             }
         }
 
-        private DesignDoc getDesignDoc(String db) {
+        private DesignDoc getDesignDoc(String db) throws IOException {
             HttpUrl url = resolveUrl(db, "_design", "noda");
 
             Request request = new Request.Builder().url(url).headers(headers).get().build();
@@ -116,16 +123,13 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
 
                 assert res.body() != null;
                 return GSON.fromJson(res.body().charStream(), DesignDoc.class);
-            } catch (Exception e) {
-                e.printStackTrace();
-                return null;
             }
         }
 
-        private void updateDesignDoc(String db, View view) {
-            HttpUrl url = resolveUrl(db, "_design", "noda");
+        private void updateDesignDoc(CouchDBView view) throws IOException {
+            HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda");
 
-            DesignDoc designDoc = getDesignDoc(db);
+            DesignDoc designDoc = getDesignDoc(view.getDatabase());
             if (designDoc == null) {
                 designDoc = new DesignDoc(view);
             } else if (!designDoc.views.containsKey(view.getName())) {
@@ -144,8 +148,6 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
                     assert res.body() != null;
                     throw new RuntimeException("Failed to create design document. " + res.body().string());
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
         }
 

@@ -19,11 +19,16 @@ import java.util.stream.Stream;
 final class CouchDBOperators extends NoSqlDbOperators {
 
     private final CouchDBConnectionManager couchDBConnectionManager = CouchDBConnectionManager.getInstance();
-    private final CouchDBView view;
+    private final CouchDBView.Builder viewBuilder;
 
     private CouchDBOperators(CouchDBConnector connector, String dataCollection, SparkSession sparkSession) {
         super(connector, dataCollection, sparkSession);
-        view = new CouchDBView(dataCollection);
+        viewBuilder = new CouchDBView.Builder().database(dataCollection);
+    }
+
+    private CouchDBOperators(CouchDBOperators self, CouchDBView.Builder viewBuilder) {
+        super(self.getNoSqlDbConnector(), self.getDataCollection(), self.getSparkSession());
+        this.viewBuilder = viewBuilder;
     }
 
     static CouchDBOperators newCouchDBOperators(CouchDBConnector noSqlDbConnector, String dataCollection, SparkSession sparkSession) {
@@ -39,14 +44,12 @@ final class CouchDBOperators extends NoSqlDbOperators {
                 .limit(filterOperators.length * 2L + 1)
                 .collect(Collectors.joining());
 
-        view.setFilter(filter);
-
-        return this;
+        return new CouchDBOperators(this, new CouchDBView.Builder().database(getDataCollection()).filter(filter));
     }
 
     @Override
     public CouchDBOperators groupBy(String fieldName, String... fieldNames) {
-        view.setGroupFields(Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).collect(Collectors.toSet()));
+        viewBuilder.groupFields(Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).collect(Collectors.toSet()));
         return this;
     }
 
@@ -58,13 +61,14 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
     @Override
     public CouchDBOperators distinct(String fieldName) {
+        viewBuilder.group(true).reduce(true);
         return groupBy(fieldName);
     }
 
     @Override
     public void printScreen() {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-        ViewResponse response = connection.execute(view);
+        ViewResponse response = connection.execute(viewBuilder);
         System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(response));
     }
 
@@ -208,19 +212,18 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators sort(SortOperator sortOperator, SortOperator... sortingOperators) {
-        @SuppressWarnings("unchecked")
-        Map<String, String> sortFields = Stream.concat(Stream.of(sortOperator), Stream.of(sortingOperators))
+        @SuppressWarnings("unchecked") Map<String, String> sortFields = Stream.concat(Stream.of(sortOperator), Stream.of(sortingOperators))
                 .flatMap(op -> ((Map<String, String>) op.getOperatorExpression()).entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        view.setSortFields(sortFields);
+        viewBuilder.sortFields(sortFields);
 
         return this;
     }
 
     @Override
     public CouchDBOperators limit(int limit) {
-        view.setLimit(limit);
+        viewBuilder.limit(limit);
         return this;
     }
 

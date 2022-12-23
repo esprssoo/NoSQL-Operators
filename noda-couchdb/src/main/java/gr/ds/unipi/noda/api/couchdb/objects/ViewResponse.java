@@ -1,10 +1,13 @@
 package gr.ds.unipi.noda.api.couchdb.objects;
 
+import com.google.gson.annotations.SerializedName;
+
 import java.util.List;
 
 public class ViewResponse {
-    public int total_rows;
-    public int offset;
+    @SerializedName("total_rows")
+    public Integer totalRows;
+    public Integer offset;
     public List<Row> rows;
 
     static class Row {
