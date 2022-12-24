@@ -11,6 +11,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -61,152 +62,93 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
     @Override
     public CouchDBOperators distinct(String fieldName) {
-        viewBuilder.group(true).reduce(true);
+        viewBuilder.group(true).reduce("function() { return true }");
         return groupBy(fieldName);
     }
 
     @Override
     public void printScreen() {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-        ViewResponse response = connection.execute(viewBuilder);
+        ViewResponse response = connection.execute(viewBuilder.build());
         System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(response));
     }
 
     @Override
     public Optional<Double> max(String fieldName) {
-//        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
+        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
+        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-//        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
-//
-//        String mapFunction = buildMapFunction(fieldName);
-//        String reduceFunction = operator.getOperatorExpression();
-//        String db = getDataCollection();
-//        String viewName = Integer.toString(Objects.hash(mapFunction, reduceFunction));
-//
-//        ensureViewExists(db, viewName, mapFunction, reduceFunction);
-//
-//        Type type = new TypeToken<ViewResponse<ViewResponse.Stats>>() {
-//        }.getType();
-//
-//        try {
-//            ViewResponse<ViewResponse.Stats> response = connector.view(db, viewName, true, limit, type);
-//            return Optional.of(response.rows.get(0).value.max);
-//        } catch (IOException e) {
-//            // TODO: error
-//            e.printStackTrace();
-//            return Optional.empty();
-//        }
-        return Optional.empty();
+        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
+        ViewResponse response = connection.execute(viewBuilder.build());
+
+        if (response.rows.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
+        return Optional.of(res.get("max"));
     }
 
     @Override
     public Optional<Double> min(String fieldName) {
-//        CouchDBConnector connector = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-//        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
-//
-//        String mapFunction = buildMapFunction(fieldName);
-//        String reduceFunction = operator.getOperatorExpression();
-//        String db = getDataCollection();
-//        String viewName = Integer.toString(Objects.hash(mapFunction, reduceFunction));
-//
-//        ensureViewExists(db, viewName, mapFunction, reduceFunction);
-//
-//        Type type = new TypeToken<ViewResponse<ViewResponse.Stats>>() {
-//        }.getType();
-//
-//        try {
-//            ViewResponse<ViewResponse.Stats> response = connector.view(db, viewName, true, limit, type);
-//            return Optional.of(response.rows.get(0).value.min);
-//        } catch (IOException e) {
-//            // TODO: error
-//            e.printStackTrace();
-//            return Optional.empty();
-//        }
-        return Optional.empty();
+        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
+        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
+
+        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
+        ViewResponse response = connection.execute(viewBuilder.build());
+
+        if (response.rows.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
+        return Optional.of(res.get("min"));
     }
 
     @Override
     public Optional<Double> sum(String fieldName) {
-//        CouchDBConnector connector = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-//        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
-//
-//        String mapFunction = buildMapFunction(fieldName);
-//        String reduceFunction = operator.getOperatorExpression();
-//        String db = getDataCollection();
-//        String viewName = Integer.toString(Objects.hash(mapFunction, reduceFunction));
-//
-//        ensureViewExists(db, viewName, mapFunction, reduceFunction);
-//
-//        Type type = new TypeToken<ViewResponse<ViewResponse.Stats>>() {
-//        }.getType();
-//
-//        try {
-//            ViewResponse<ViewResponse.Stats> response = connector.view(db, viewName, true, limit, type);
-//            return Optional.of(response.rows.get(0).value.sum);
-//        } catch (IOException e) {
-//            // TODO: error
-//            e.printStackTrace();
-//            return Optional.empty();
-//        }
-        return Optional.empty();
+        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
+        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
+
+        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
+        ViewResponse response = connection.execute(viewBuilder.build());
+
+        if (response.rows.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
+        return Optional.of(res.get("sum"));
     }
 
 
     @Override
     public Optional<Double> avg(String fieldName) {
-//        CouchDBConnector connector = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-//        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
-//
-//        String mapFunction = buildMapFunction(fieldName);
-//        String reduceFunction = operator.getOperatorExpression();
-//        String db = getDataCollection();
-//        String viewName = Integer.toString(Objects.hash(mapFunction, reduceFunction));
-//
-//        ensureViewExists(db, viewName, mapFunction, reduceFunction);
-//
-//        Type type = new TypeToken<ViewResponse<Double>>() {
-//        }.getType();
-//
-//        try {
-//            ViewResponse<Double> response = connector.view(db, viewName, true, limit, type);
-//            return Optional.of(response.rows.get(0).value);
-//        } catch (IOException e) {
-//            // TODO: error
-//            e.printStackTrace();
-//            return Optional.empty();
-//        }
-        return Optional.empty();
+        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
+        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
+
+        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
+        ViewResponse response = connection.execute(viewBuilder.build());
+
+        if (response.rows.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Double res = (Double) response.rows.get(0).value;
+        return Optional.of(res);
     }
 
     @Override
     public int count() {
-//        CouchDBConnector connector = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-//        boolean shouldUseReduceFunction = groupFields.size() > 0;
-//
-//        String mapFunction = buildMapFunction(null);
-//        String reduceFunction = shouldUseReduceFunction ? "_count" : null;
-//        String db = getDataCollection();
-//        String viewName = Integer.toString(Objects.hash(mapFunction, reduceFunction));
-//
-//        ensureViewExists(db, viewName, mapFunction, reduceFunction);
-//
-//        Type type = new TypeToken<ViewResponse<Integer>>() {
-//        }.getType();
-//
-//        try {
-//            ViewResponse<Integer> response = connector.view(db, viewName, shouldUseReduceFunction, limit, type);
-//
-//            if (shouldUseReduceFunction) {
-//                // TODO: επιστρέφω την πρώτη τιμή που μου επιστρέφει ένα groupBy
-//                return response.rows.get(0).value;
-//            } else {
-//                return response.total_rows;
-//            }
-//        } catch (IOException e) {
-//            // TODO: error
-//            throw new RuntimeException(e);
-//        }
-        return 0;
+        CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
+
+        ViewResponse response = connection.execute(viewBuilder.build());
+
+        if (response.totalRows != null) {
+            return response.totalRows;
+        } else {
+            return response.rows.size();
+        }
     }
 
     @Override
@@ -242,23 +184,4 @@ final class CouchDBOperators extends NoSqlDbOperators {
     public CouchDBOperators join(NoSqlDbOperators noSqlDbOperators, JoinOperator jo) {
         return this;
     }
-
-//    private String buildMapFunction(String valueField) {
-//        String finalValueField = valueField == null ? "null" : "doc[\"" + valueField + "\"]";
-//
-//        String keys = groupFields.size() > 0
-//                      ? groupFields.stream().map(field -> new StringBuilder("doc[\"")
-//                .append(valueField)
-//                .append("\"]")).collect(Collectors.toList()).toString()
-//                      : "null";
-//
-//        String values = Stream
-//                .of("doc['weight']", "doc['weight']")
-//                .collect(Collectors.toList())
-//                .toString();
-//
-//        String emitting = "emit(" + keys + ", " + values + ");";
-//
-//        return "function(doc) { if (" + filterCondition + ") {" + emitting + "}}";
-//    }
 }

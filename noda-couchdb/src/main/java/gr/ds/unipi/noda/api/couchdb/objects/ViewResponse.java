@@ -10,7 +10,7 @@ public class ViewResponse {
     public Integer offset;
     public List<Row> rows;
 
-    static class Row {
+    public static class Row {
         public String id;
         public Object key;
         public Object value;

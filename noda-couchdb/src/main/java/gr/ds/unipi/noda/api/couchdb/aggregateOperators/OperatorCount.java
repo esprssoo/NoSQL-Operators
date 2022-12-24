@@ -12,7 +12,6 @@ final class OperatorCount extends AggregateOperator {
 
     @Override
     protected String reduceFunction() {
-        // TODO: _stats function REQUIRES numeric values only
-        return null;
+        return "_count";
     }
 }

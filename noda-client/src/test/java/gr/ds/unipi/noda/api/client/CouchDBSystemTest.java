@@ -4,27 +4,30 @@ import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
 import org.junit.Test;
 
 import static gr.ds.unipi.noda.api.core.operators.FilterOperators.gte;
-import static gr.ds.unipi.noda.api.core.operators.SortOperators.asc;
-import static gr.ds.unipi.noda.api.core.operators.SortOperators.desc;
 
 public class CouchDBSystemTest {
+    private NoSqlDbOperators getOperators(String db) {
+        return NoSqlDbSystem.CouchDB().Builder("admin", "password").host("localhost").port(5984).build().operateOn(db);
+    }
+
     @Test
     public void couchdbTest() {
-        NoSqlDbSystem noSqlDbSystem = NoSqlDbSystem.CouchDB().Builder("admin", "password").host(
-                "localhost").port(5984).build();
+        NoSqlDbOperators noSqlDbOperators = getOperators("animals");
 
-        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("animals");
+        System.out.println(noSqlDbOperators.filter(gte("weight", 100)).sum("weight"));
+//        noSqlDbOperators.filter(gte("weight", 100)).sort(asc("height")).printScreen();
+//        noSqlDbOperators.filter(gte("weight", 100)).sort(desc("height")).printScreen();
+    }
 
-        //        Optional<Double> maxWeight = noSqlDbOperators.filter(lte("weight", 500)).sum("weight");
-        //        System.out.println(maxWeight.isPresent() ? maxWeight.get() : 0);
+    @Test
+    public void countWorks() {
+        NoSqlDbOperators noSqlDbOperators = getOperators("animals");
 
-        //        noSqlDbOperators.filter(lte("weight", 500)).limit(1).printScreen();
-        //        System.out.println(noSqlDbOperators.filter(lte("weight", 500)).groupBy("name").count());
+        long startTime = System.currentTimeMillis();
+        int count = noSqlDbOperators.count();
+        long elapsed = System.currentTimeMillis() - startTime;
 
-        noSqlDbOperators.filter(gte("weight", 100)).distinct("name").printScreen();
-        noSqlDbOperators.filter(gte("weight", 100)).sort(asc("height")).printScreen();
-        noSqlDbOperators.filter(gte("weight", 100)).sort(desc("height")).printScreen();
-
-        noSqlDbSystem.closeConnection();
+        assert count == 4;
+        System.out.println("countWorks() took " + elapsed + "ms");
     }
 }

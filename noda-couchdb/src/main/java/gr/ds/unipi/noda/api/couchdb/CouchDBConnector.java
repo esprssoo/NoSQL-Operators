@@ -68,9 +68,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             this.headers = new Headers.Builder().add("accept", "application/json").build();
         }
 
-        public ViewResponse execute(CouchDBView.Builder viewBuilder) {
-            CouchDBView view = viewBuilder.build();
-
+        public ViewResponse execute(CouchDBView view) {
             try {
                 // Create or update the internal design document if it doesn't exist
                 updateDesignDoc(view);

@@ -8,7 +8,6 @@ final public class CouchDBView {
     transient private final String database;
     transient private final String name;
     transient private final boolean isGroup;
-    transient private final boolean isReduce;
     transient private final int limit;
     transient private final boolean descending;
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -16,13 +15,12 @@ final public class CouchDBView {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final String reduce;
 
-    private CouchDBView(String database, String name, String map, String reduce, boolean isGroup, boolean isReduce, int limit, boolean descending) {
+    private CouchDBView(String database, String name, String map, String reduce, boolean isGroup, int limit, boolean descending) {
         this.database = database;
         this.name = name;
         this.map = map;
         this.reduce = reduce;
         this.isGroup = isGroup;
-        this.isReduce = isReduce;
         this.limit = limit;
         this.descending = descending;
     }
@@ -40,7 +38,7 @@ final public class CouchDBView {
     }
 
     public boolean isReduce() {
-        return isReduce;
+        return reduce != null;
     }
 
     public int getLimit() {
@@ -57,12 +55,15 @@ final public class CouchDBView {
         private String filter;
         private Set<String> groupFields;
         private Map<String, String> sortFields;
+        private Set<String> valueFields;
         private boolean isGroup = false;
-        private boolean isReduce = false;
+        private String reduce;
         private int limit = -1;
 
         public CouchDBView build() {
             ArrayList<String> keys = new ArrayList<>();
+
+            String condition = filter != null ? "if (" + filter + ")" : "";
 
             boolean descending = false;
             if (sortFields != null) {
@@ -91,11 +92,18 @@ final public class CouchDBView {
                 emitKey = keys.toString();
             }
 
-            String map = "function(doc){ if(" + filter + ") emit(" + emitKey + ", null) }";
-            String reduce = "function(keys, values){ return true }";
-            String name = Integer.toString(map.hashCode() + reduce.hashCode());
+            String emitValue;
+            if (valueFields.size() == 0) {
+                emitValue = "null";
+            } else {
+                emitValue = valueFields.stream().map(field -> "doc[\"" + field + "\"]").findFirst().get();
+            }
 
-            return new CouchDBView(database, name, map, reduce, isGroup, isReduce, limit, descending);
+            String map = "function(doc){ " + condition + " emit(" + emitKey + ", " + emitValue + ") }";
+            int reduceHash = reduce != null ? reduce.hashCode() : 0;
+            String name = Integer.toString(map.hashCode() + reduceHash);
+
+            return new CouchDBView(database, name, map, reduce, isGroup, limit, descending);
         }
 
         public Builder database(String database) {
@@ -118,8 +126,8 @@ final public class CouchDBView {
             return this;
         }
 
-        public Builder reduce(boolean reduce) {
-            isReduce = reduce;
+        public Builder reduce(String reduce) {
+            this.reduce = reduce;
             return this;
         }
 
@@ -130,6 +138,11 @@ final public class CouchDBView {
 
         public Builder sortFields(Map<String, String> sortFields) {
             this.sortFields = sortFields;
+            return this;
+        }
+
+        public Builder valueFields(Set<String> valueFields) {
+            this.valueFields = valueFields;
             return this;
         }
     }
