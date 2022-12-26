@@ -2,8 +2,6 @@ package gr.ds.unipi.noda.api.couchdb;
 
 import com.google.gson.Gson;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbConnector;
-import gr.ds.unipi.noda.api.couchdb.objects.DesignDoc;
-import gr.ds.unipi.noda.api.couchdb.objects.ViewResponse;
 import okhttp3.Credentials;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -68,7 +66,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             this.headers = new Headers.Builder().add("accept", "application/json").build();
         }
 
-        public ViewResponse execute(CouchDBView view) {
+        public View.Response execute(View view) {
             try {
                 // Create or update the internal design document if it doesn't exist
                 updateDesignDoc(view);
@@ -82,11 +80,17 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             Map<String, Object> body = new HashMap<>();
             body.put("reduce", view.isReduce());
             body.put("include_docs", !view.isReduce());
-            body.put("group", view.isGroup());
             body.put("descending", view.isDescending());
+            body.put("group", view.isReduce() && view.isGroup());
+
+            int groupLevel = view.getGroupLevel();
+            if (groupLevel > 0) {
+                body.put("group_level", groupLevel);
+            }
+
             int limit = view.getLimit();
             if (limit >= 0) {
-                body.put("limit", view.getLimit());
+                body.put("limit", limit);
             }
 
             Request request = new Request.Builder().url(url)
@@ -102,7 +106,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
                     return null;
                 }
 
-                return GSON.fromJson(res.body().charStream(), ViewResponse.class);
+                return GSON.fromJson(res.body().charStream(), View.Response.class);
             } catch (IOException e) {
                 e.printStackTrace();
                 return null;
@@ -124,7 +128,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             }
         }
 
-        private void updateDesignDoc(CouchDBView view) throws IOException {
+        private void updateDesignDoc(View view) throws IOException {
             HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda");
 
             DesignDoc designDoc = getDesignDoc(view.getDatabase());

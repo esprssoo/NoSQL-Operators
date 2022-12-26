@@ -11,11 +11,12 @@ final class OperatorAvg extends AggregateOperator {
     }
 
     @Override
-    protected String reduceFunction() {
-        return "function(keys, values) {"
-               + "var sum = 0;"
-               + "for (var value of values) sum += value;"
-               + "return sum / values.length"
-               + "}";
+    protected String reduceStageExpression() {
+        return "sum(values.map(a => a[\"" + getFieldName() + "\"]))";
+    }
+
+    @Override
+    protected String rereduceStageExpression() {
+        return "values.reduce((a, b) => a + b[\"" + getAlias() + "\"], 0) / values.length";
     }
 }

@@ -3,6 +3,8 @@ package gr.ds.unipi.noda.api.client;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
 import org.junit.Test;
 
+import static gr.ds.unipi.noda.api.core.operators.AggregateOperators.avg;
+import static gr.ds.unipi.noda.api.core.operators.AggregateOperators.sum;
 import static gr.ds.unipi.noda.api.core.operators.FilterOperators.gte;
 
 public class CouchDBSystemTest {
@@ -14,7 +16,11 @@ public class CouchDBSystemTest {
     public void couchdbTest() {
         NoSqlDbOperators noSqlDbOperators = getOperators("animals");
 
-        System.out.println(noSqlDbOperators.filter(gte("weight", 100)).sum("weight"));
+//        System.out.println(noSqlDbOperators.filter(gte("weight", 100)).sum("weight"));
+        noSqlDbOperators.filter(gte("weight", 0))
+                .aggregate(sum("weight"), avg("height").as("average_height"))
+                .groupBy("species")
+                .printScreen();
 //        noSqlDbOperators.filter(gte("weight", 100)).sort(asc("height")).printScreen();
 //        noSqlDbOperators.filter(gte("weight", 100)).sort(desc("height")).printScreen();
     }

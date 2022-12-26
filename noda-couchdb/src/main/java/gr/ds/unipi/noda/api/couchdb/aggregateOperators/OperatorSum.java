@@ -11,7 +11,12 @@ final class OperatorSum extends AggregateOperator {
     }
 
     @Override
-    protected String reduceFunction() {
-        return "_stats";
+    protected String reduceStageExpression() {
+        return "sum(values.map(a => a[\"" + getFieldName() + "\"]))";
+    }
+
+    @Override
+    protected String rereduceStageExpression() {
+        return "values.reduce((a, b) => a + b[\"" + getAlias() + "\"], 0)";
     }
 }

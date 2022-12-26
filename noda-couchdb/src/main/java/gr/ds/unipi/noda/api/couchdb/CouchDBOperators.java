@@ -6,28 +6,30 @@ import gr.ds.unipi.noda.api.core.operators.aggregateOperators.AggregateOperator;
 import gr.ds.unipi.noda.api.core.operators.filterOperators.FilterOperator;
 import gr.ds.unipi.noda.api.core.operators.joinOperators.JoinOperator;
 import gr.ds.unipi.noda.api.core.operators.sortOperators.SortOperator;
-import gr.ds.unipi.noda.api.couchdb.objects.ViewResponse;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class CouchDBOperators extends NoSqlDbOperators {
 
     private final CouchDBConnectionManager couchDBConnectionManager = CouchDBConnectionManager.getInstance();
-    private final CouchDBView.Builder viewBuilder;
+    private final View.Builder viewBuilder;
 
     private CouchDBOperators(CouchDBConnector connector, String dataCollection, SparkSession sparkSession) {
         super(connector, dataCollection, sparkSession);
-        viewBuilder = new CouchDBView.Builder().database(dataCollection);
+        viewBuilder = new View.Builder().database(dataCollection);
     }
 
-    private CouchDBOperators(CouchDBOperators self, CouchDBView.Builder viewBuilder) {
+    private CouchDBOperators(CouchDBOperators self, View.Builder viewBuilder) {
         super(self.getNoSqlDbConnector(), self.getDataCollection(), self.getSparkSession());
         this.viewBuilder = viewBuilder;
     }
@@ -45,104 +47,151 @@ final class CouchDBOperators extends NoSqlDbOperators {
                 .limit(filterOperators.length * 2L + 1)
                 .collect(Collectors.joining());
 
-        return new CouchDBOperators(this, new CouchDBView.Builder().database(getDataCollection()).filter(filter));
+        return new CouchDBOperators(this, new View.Builder().database(getDataCollection()).filter(filter));
     }
 
     @Override
     public CouchDBOperators groupBy(String fieldName, String... fieldNames) {
-        viewBuilder.groupFields(Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).collect(Collectors.toSet()));
+        viewBuilder.group(true)
+                .groupFields(Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).collect(Collectors.toSet()));
         return this;
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators aggregate(AggregateOperator aggregateOperator, AggregateOperator... aggregateOperators) {
+        String[] operatorExpressions = (String[]) aggregateOperator.getOperatorExpression();
+        HashMap<String, String> reduceExpressions = new HashMap<>();
+        HashMap<String, String> rereduceExpressions = new HashMap<>();
+        Set<String> valueFields = new HashSet<>();
+
+        valueFields.add(aggregateOperator.getFieldName());
+        reduceExpressions.put(aggregateOperator.getAlias(), operatorExpressions[0]);
+        rereduceExpressions.put(aggregateOperator.getAlias(), operatorExpressions[1]);
+
+        for (AggregateOperator<?> operator : aggregateOperators) {
+            operatorExpressions = (String[]) operator.getOperatorExpression();
+
+            valueFields.add(operator.getFieldName());
+            reduceExpressions.put(operator.getAlias(), operatorExpressions[0]);
+            rereduceExpressions.put(operator.getAlias(), operatorExpressions[1]);
+        }
+
+        viewBuilder.valueFields(valueFields)
+                .reduceExpressions(reduceExpressions)
+                .rereduceExpressions(rereduceExpressions)
+                .reduce(true);
+
         return this;
     }
 
     @Override
     public CouchDBOperators distinct(String fieldName) {
-        viewBuilder.group(true).reduce("function() { return true }");
+        viewBuilder.group(true).reduce(true);
         return groupBy(fieldName);
     }
 
     @Override
     public void printScreen() {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
-        ViewResponse response = connection.execute(viewBuilder.build());
+        View.Response response = connection.execute(viewBuilder.build());
         System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(response));
     }
 
     @Override
     public Optional<Double> max(String fieldName) {
-        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
-        ViewResponse response = connection.execute(viewBuilder.build());
+        AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+
+        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
+                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
+                .valueFields(Collections.singleton(fieldName))
+                .reduce(true)
+                .group(true);
+
+        View.Response response = connection.execute(viewBuilder.build());
 
         if (response.rows.isEmpty()) {
             return Optional.empty();
         }
 
-        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
-        return Optional.of(res.get("max"));
+        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
     }
 
     @Override
     public Optional<Double> min(String fieldName) {
-        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
-        ViewResponse response = connection.execute(viewBuilder.build());
+        AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+
+        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
+                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
+                .valueFields(Collections.singleton(fieldName))
+                .reduce(true)
+                .group(true);
+
+        View.Response response = connection.execute(viewBuilder.build());
 
         if (response.rows.isEmpty()) {
             return Optional.empty();
         }
 
-        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
-        return Optional.of(res.get("min"));
+        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
     }
 
     @Override
     public Optional<Double> sum(String fieldName) {
-        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
-        ViewResponse response = connection.execute(viewBuilder.build());
+        AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+
+        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
+                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
+                .valueFields(Collections.singleton(fieldName))
+                .reduce(true)
+                .group(true);
+
+        View.Response response = connection.execute(viewBuilder.build());
 
         if (response.rows.isEmpty()) {
             return Optional.empty();
         }
 
-        Map<String, Double> res = (Map<String, Double>) response.rows.get(0).value;
-        return Optional.of(res.get("sum"));
+        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
     }
 
 
     @Override
     public Optional<Double> avg(String fieldName) {
-        AggregateOperator<String> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-        viewBuilder.valueFields(Collections.singleton(fieldName)).reduce(operator.getOperatorExpression());
-        ViewResponse response = connection.execute(viewBuilder.build());
+        AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+
+        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
+                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
+                .valueFields(Collections.singleton(fieldName))
+                .reduce(true)
+                .group(true);
+
+        View.Response response = connection.execute(viewBuilder.build());
 
         if (response.rows.isEmpty()) {
             return Optional.empty();
         }
 
-        Double res = (Double) response.rows.get(0).value;
-        return Optional.of(res);
+        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
     }
 
     @Override
     public int count() {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
-        ViewResponse response = connection.execute(viewBuilder.build());
+        View.Response response = connection.execute(viewBuilder.build());
 
         if (response.totalRows != null) {
             return response.totalRows;

@@ -11,7 +11,12 @@ public class OperatorCountNonNull extends AggregateOperator {
     }
 
     @Override
-    protected String reduceFunction() {
-        return null;
+    protected String reduceStageExpression() {
+        return "values.map(a => a[\"" + getFieldName() + "\"]).filter(a => a != null).length";
+    }
+
+    @Override
+    protected String rereduceStageExpression() {
+        return "values.reduce((a, b) => a + b[\"" + getAlias() + "\"], 0)";
     }
 }

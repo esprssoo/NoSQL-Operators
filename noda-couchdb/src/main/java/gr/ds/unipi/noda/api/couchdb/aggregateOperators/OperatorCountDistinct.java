@@ -11,7 +11,12 @@ public class OperatorCountDistinct extends AggregateOperator {
     }
 
     @Override
-    protected String reduceFunction() {
+    protected String reduceStageExpression() {
+        return null;
+    }
+
+    @Override
+    protected String rereduceStageExpression() {
         return null;
     }
 }
