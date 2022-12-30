@@ -3,7 +3,7 @@ package gr.ds.unipi.noda.api.couchdb;
 import java.util.HashMap;
 import java.util.Map;
 
-class DesignDoc {
+final class DesignDoc {
     public String _id;
     public String _rev;
     public Map<String, View> views;

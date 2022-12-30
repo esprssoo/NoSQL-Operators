@@ -3,6 +3,8 @@ package gr.ds.unipi.noda.api.couchdb;
 import com.google.gson.annotations.SerializedName;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +23,7 @@ final class View {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final String reduce;
 
-private View(String database, String map, String reduce, boolean isReduce, boolean isGroup, int groupLevel, int limit, boolean descending) {
+    private View(String database, String map, String reduce, boolean isReduce, boolean isGroup, int groupLevel, int limit, boolean descending) {
         this.database = database;
         this.name = Integer.toString(map.hashCode() + reduce.hashCode());
         this.map = map;
@@ -63,31 +65,34 @@ private View(String database, String map, String reduce, boolean isReduce, boole
 
     @SuppressWarnings("UnusedReturnValue")
     public static class Builder {
-        private String database;
-        private String filter;
-        private Set<String> groupFields;
-        private Map<String, String> sortFields;
-        private Set<String> valueFields;
+        private final String database;
+        private final List<String> filters = new ArrayList<>();
+        private final Set<String> groupFields = new HashSet<>();
+        private final Map<String, String> sortFields = new HashMap<>();
+        private final Set<String> valueFields = new HashSet<>();
+        private final Map<String, String> reduceExpressions = new HashMap<>();
+        private final Map<String, String> rereduceExpressions = new HashMap<>();
+        private boolean isReduce = false;
         private boolean isGroup = false;
-        private boolean isReduce;
         private int limit = -1;
-        private Map<String, String> reduceExpressions;
-        private Map<String, String> rereduceExpressions;
+
+        public Builder(String database) {
+            this.database = database;
+        }
 
         public View build() {
             ArrayList<String> keys = new ArrayList<>();
 
             int groupLevel = 0;
-            boolean descending = false;
-
-            if (groupFields != null) {
+            if (!groupFields.isEmpty()) {
                 for (String field : groupFields) {
                     keys.add("doc[\"" + field + "\"]");
                 }
                 groupLevel = groupFields.size();
             }
 
-            if (sortFields != null) {
+            boolean descending = false;
+            if (!sortFields.isEmpty()) {
                 for (Map.Entry<String, String> entry : sortFields.entrySet()) {
                     if (entry.getValue().equals("ascending") && descending) {
                         throw new IllegalStateException("Multiple sorting fields with different sort orders");
@@ -100,7 +105,9 @@ private View(String database, String map, String reduce, boolean isReduce, boole
 
             // Create map function
             StringBuilder map = new StringBuilder();
-            map.append("function(doc){").append(filter != null ? "if (" + filter + ")" : "").append("emit(");
+            map.append("function(doc) {")
+                    .append(filters.isEmpty() ? "" : "if (" + String.join("&&", filters) + ")")
+                    .append("emit(");
             if (keys.size() == 0) {
                 map.append("null");
             } else if (keys.size() == 1) {
@@ -122,11 +129,15 @@ private View(String database, String map, String reduce, boolean isReduce, boole
 
             // Create reduce function
             StringBuilder reduce = new StringBuilder();
-            if (reduceExpressions == null || rereduceExpressions == null) {
+            if (reduceExpressions.isEmpty()) {
                 reduce.append("function() { return null }");
             } else {
                 reduce.append("function(keys, values, rereduce){ if (rereduce) { return {");
-                rereduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
+                rereduceExpressions.forEach((k, v) -> reduce.append('"')
+                        .append(k)
+                        .append("\": ")
+                        .append(v)
+                        .append(','));
                 reduce.append("} } else { return {");
                 reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
                 reduce.append("} } }");
@@ -135,13 +146,8 @@ private View(String database, String map, String reduce, boolean isReduce, boole
             return new View(database, map.toString(), reduce.toString(), isReduce, isGroup, groupLevel, limit, descending);
         }
 
-        public Builder database(String database) {
-            this.database = database;
-            return this;
-        }
-
         public Builder filter(String filter) {
-            this.filter = filter;
+            this.filters.add(filter);
             return this;
         }
 
@@ -156,36 +162,33 @@ private View(String database, String map, String reduce, boolean isReduce, boole
         }
 
         public Builder reduce(boolean reduce) {
-            this.isReduce = reduce;
+            isReduce = reduce;
             return this;
         }
 
-        public Builder groupFields(Set<String> groupFields) {
-            this.groupFields = groupFields;
+        public Builder groupField(String groupField) {
+            this.groupFields.add(groupField);
             return this;
         }
 
         public Builder sortFields(Map<String, String> sortFields) {
-            this.sortFields = sortFields;
+            this.sortFields.putAll(sortFields);
             return this;
         }
 
-        public Builder valueFields(Set<String> valueFields) {
-            this.valueFields = valueFields;
+        public Builder valueField(String valueField) {
+            this.valueFields.add(valueField);
             return this;
         }
 
-        public Builder reduceExpressions(Map<String, String> reduceExpressions) {
-            this.reduceExpressions = reduceExpressions;
-            return this;
-        }
-
-        public Builder rereduceExpressions(Map<String, String> rereduceExpressions) {
-            this.rereduceExpressions = rereduceExpressions;
+        public Builder reduceExpression(String alias, String reduceExpression, String rereduceExpression) {
+            this.reduceExpressions.put(alias, reduceExpression);
+            this.rereduceExpressions.put(alias, rereduceExpression);
             return this;
         }
     }
 
+    @SuppressWarnings("unused")
     public static class Response {
         @SerializedName("total_rows")
         public Integer totalRows;

@@ -10,13 +10,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class CouchDBOperators extends NoSqlDbOperators {
@@ -26,12 +21,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
     private CouchDBOperators(CouchDBConnector connector, String dataCollection, SparkSession sparkSession) {
         super(connector, dataCollection, sparkSession);
-        viewBuilder = new View.Builder().database(dataCollection);
-    }
-
-    private CouchDBOperators(CouchDBOperators self, View.Builder viewBuilder) {
-        super(self.getNoSqlDbConnector(), self.getDataCollection(), self.getSparkSession());
-        this.viewBuilder = viewBuilder;
+        viewBuilder = new View.Builder(dataCollection);
     }
 
     static CouchDBOperators newCouchDBOperators(CouchDBConnector noSqlDbConnector, String dataCollection, SparkSession sparkSession) {
@@ -41,46 +31,31 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators filter(FilterOperator filterOperator, FilterOperator... filterOperators) {
-        // Combines multiple filter operators with logical condition And
-        String filter = Stream.concat(Stream.of(filterOperator), Stream.of(filterOperators))
-                .flatMap(o -> Stream.of((StringBuilder) o.getOperatorExpression(), "&&"))
-                .limit(filterOperators.length * 2L + 1)
-                .collect(Collectors.joining());
+        Stream.concat(Stream.of(filterOperator), Stream.of(filterOperators))
+                .map(op -> (String) op.getOperatorExpression())
+                .forEach(viewBuilder::filter);
 
-        return new CouchDBOperators(this, new View.Builder().database(getDataCollection()).filter(filter));
+        return this;
     }
 
     @Override
     public CouchDBOperators groupBy(String fieldName, String... fieldNames) {
-        viewBuilder.group(true)
-                .groupFields(Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).collect(Collectors.toSet()));
+        Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).forEach(viewBuilder::groupField);
+        viewBuilder.group(true);
+
         return this;
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators aggregate(AggregateOperator aggregateOperator, AggregateOperator... aggregateOperators) {
-        String[] operatorExpressions = (String[]) aggregateOperator.getOperatorExpression();
-        HashMap<String, String> reduceExpressions = new HashMap<>();
-        HashMap<String, String> rereduceExpressions = new HashMap<>();
-        Set<String> valueFields = new HashSet<>();
+        Stream.concat(Stream.of(aggregateOperator), Stream.of(aggregateOperators)).forEach(op -> {
+            String[] expression = (String[]) op.getOperatorExpression();
+            assert expression.length == 2;
+            viewBuilder.reduceExpression(op.getAlias(), expression[0], expression[1]).valueField(op.getFieldName());
+        });
 
-        valueFields.add(aggregateOperator.getFieldName());
-        reduceExpressions.put(aggregateOperator.getAlias(), operatorExpressions[0]);
-        rereduceExpressions.put(aggregateOperator.getAlias(), operatorExpressions[1]);
-
-        for (AggregateOperator<?> operator : aggregateOperators) {
-            operatorExpressions = (String[]) operator.getOperatorExpression();
-
-            valueFields.add(operator.getFieldName());
-            reduceExpressions.put(operator.getAlias(), operatorExpressions[0]);
-            rereduceExpressions.put(operator.getAlias(), operatorExpressions[1]);
-        }
-
-        viewBuilder.valueFields(valueFields)
-                .reduceExpressions(reduceExpressions)
-                .rereduceExpressions(rereduceExpressions)
-                .reduce(true);
+        viewBuilder.reduce(true);
 
         return this;
     }
@@ -103,13 +78,14 @@ final class CouchDBOperators extends NoSqlDbOperators {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
 
-        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
-                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
-                .valueFields(Collections.singleton(fieldName))
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+        assert operatorExpression.length == 2;
+
+        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+                .valueField(fieldName)
                 .reduce(true)
-                .group(true);
+                .group(false);
 
         View.Response response = connection.execute(viewBuilder.build());
 
@@ -125,13 +101,14 @@ final class CouchDBOperators extends NoSqlDbOperators {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
 
-        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
-                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
-                .valueFields(Collections.singleton(fieldName))
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+        assert operatorExpression.length == 2;
+
+        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+                .valueField(fieldName)
                 .reduce(true)
-                .group(true);
+                .group(false);
 
         View.Response response = connection.execute(viewBuilder.build());
 
@@ -139,7 +116,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
             return Optional.empty();
         }
 
-        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
+        return Optional.of((Double) response.rows.get(0).value.get(operator.getAlias()));
     }
 
     @Override
@@ -147,13 +124,14 @@ final class CouchDBOperators extends NoSqlDbOperators {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
 
-        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
-                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
-                .valueFields(Collections.singleton(fieldName))
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+        assert operatorExpression.length == 2;
+
+        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+                .valueField(fieldName)
                 .reduce(true)
-                .group(true);
+                .group(false);
 
         View.Response response = connection.execute(viewBuilder.build());
 
@@ -161,22 +139,22 @@ final class CouchDBOperators extends NoSqlDbOperators {
             return Optional.empty();
         }
 
-        return Optional.of((Double) ((Map<String, ?>) response.rows.get(0).value).get(operator.getAlias()));
+        return Optional.of((Double) response.rows.get(0).value.get(operator.getAlias()));
     }
-
 
     @Override
     public Optional<Double> avg(String fieldName) {
         CouchDBConnector.CouchDBConnection connection = couchDBConnectionManager.getConnection(getNoSqlDbConnector());
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
 
-        viewBuilder.reduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[0]))
-                .rereduceExpressions(Collections.singletonMap(operator.getAlias(), operatorExpression[1]))
-                .valueFields(Collections.singleton(fieldName))
+        String[] operatorExpression = (String[]) operator.getOperatorExpression();
+        assert operatorExpression.length == 2;
+
+        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+                .valueField(fieldName)
                 .reduce(true)
-                .group(true);
+                .group(false);
 
         View.Response response = connection.execute(viewBuilder.build());
 
@@ -203,11 +181,9 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators sort(SortOperator sortOperator, SortOperator... sortingOperators) {
-        @SuppressWarnings("unchecked") Map<String, String> sortFields = Stream.concat(Stream.of(sortOperator), Stream.of(sortingOperators))
-                .flatMap(op -> ((Map<String, String>) op.getOperatorExpression()).entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        viewBuilder.sortFields(sortFields);
+        Stream.concat(Stream.of(sortOperator), Stream.of(sortingOperators))
+                .map(op -> ((Map) op.getOperatorExpression()))
+                .forEach(viewBuilder::sortFields);
 
         return this;
     }
