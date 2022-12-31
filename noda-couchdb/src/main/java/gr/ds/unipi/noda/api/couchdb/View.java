@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 final class View {
     transient private final String database;
@@ -70,6 +69,7 @@ final class View {
         private Set<String> groupFields = new HashSet<>();
         private Map<String, String> sortFields = new HashMap<>();
         private Set<String> valueFields = new HashSet<>();
+        private Set<String> projectFields = new HashSet<>();
         private Map<String, String> reduceExpressions = new HashMap<>();
         private Map<String, String> rereduceExpressions = new HashMap<>();
         private boolean isReduce = false;
@@ -86,6 +86,7 @@ final class View {
             this.groupFields = new HashSet<>(self.groupFields);
             this.sortFields = new HashMap<>(self.sortFields);
             this.valueFields = new HashSet<>(self.valueFields);
+            this.projectFields = new HashSet<>(self.projectFields);
             this.reduceExpressions = new HashMap<>(self.reduceExpressions);
             this.rereduceExpressions = new HashMap<>(self.rereduceExpressions);
             this.isGroup = self.isGroup;
@@ -129,32 +130,41 @@ final class View {
                 map.append(keys);
             }
             map.append(",");
-            if (valueFields.size() == 0) {
+            if (valueFields.size() == 0 && projectFields.size() == 0) {
                 map.append("null");
             } else {
                 map.append("{");
-                map.append(valueFields.stream()
-                        .map(field -> "\"" + field + "\": doc[\"" + field + "\"]")
-                        .collect(Collectors.joining(",")));
+                valueFields.forEach(field -> map.append('"')
+                        .append(field)
+                        .append("\": doc[\"")
+                        .append(field)
+                        .append("\"],"));
+                projectFields.forEach(field -> map.append('"')
+                        .append(field)
+                        .append("\": doc[\"")
+                        .append(field)
+                        .append("\"],"));
                 map.append("}");
             }
             map.append(")}");
 
             // Create reduce function
             StringBuilder reduce = new StringBuilder();
-            if (reduceExpressions.isEmpty()) {
-                reduce.append("function() { return null }");
-            } else {
-                reduce.append("function(keys, values, rereduce){ if (rereduce) { return {");
-                rereduceExpressions.forEach((k, v) -> reduce.append('"')
-                        .append(k)
-                        .append("\": ")
-                        .append(v)
-                        .append(','));
-                reduce.append("} } else { return {");
-                reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
-                reduce.append("} } }");
-            }
+            reduce.append("function(keys, values, rereduce){ if (rereduce) { return {");
+            projectFields.forEach(field -> reduce.append('"')
+                    .append(field)
+                    .append("\": values.flatMap(a => a[\"")
+                    .append(field)
+                    .append("\"]),"));
+            rereduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
+            reduce.append("} } else { return {");
+            projectFields.forEach(field -> reduce.append('"')
+                    .append(field)
+                    .append("\": values.map(a => a[\"")
+                    .append(field)
+                    .append("\"]),"));
+            reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
+            reduce.append("} } }");
 
             return new View(database, map.toString(), reduce.toString(), isReduce, isGroup, groupLevel, limit, descending);
         }
@@ -191,6 +201,11 @@ final class View {
 
         public Builder valueField(String valueField) {
             this.valueFields.add(valueField);
+            return this;
+        }
+
+        public Builder projectField(String projectField) {
+            this.projectFields.add(projectField);
             return this;
         }
 

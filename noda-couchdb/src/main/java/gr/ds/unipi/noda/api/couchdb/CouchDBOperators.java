@@ -210,6 +210,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     public CouchDBOperators project(String fieldName, String... fieldNames) {
         View.Builder builder = new View.Builder(viewBuilder);
+        Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).forEach(builder::projectField);
         return new CouchDBOperators(this, builder);
     }
 
@@ -221,7 +222,6 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators join(NoSqlDbOperators noSqlDbOperators, JoinOperator jo) {
-        View.Builder builder = new View.Builder(viewBuilder);
-        return new CouchDBOperators(this, builder);
+        return null;
     }
 }

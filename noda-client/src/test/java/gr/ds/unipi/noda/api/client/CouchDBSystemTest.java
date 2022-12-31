@@ -15,9 +15,9 @@ public class CouchDBSystemTest {
     @Test
     public void couchdbTest() {
         getSystem().operateOn("animals")
-                .filter(or(gte("weight", 100), lt("height", 10)))
-                .filter(ne("name", "Rabbit"))
-                .sort(desc("height"), desc("weight"))
+                .groupBy("species")
+//                .aggregate(sum("weight"))
+                .project("height", "weight", "name")
                 .printScreen();
     }
 
