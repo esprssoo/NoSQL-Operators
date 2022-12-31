@@ -10,7 +10,7 @@ public class CouchDBSystem extends NoSqlDbSystem {
 
     private CouchDBSystem(Builder builder) {
         super(builder, new CouchDBConnectionFactory());
-        connector = CouchDBConnector.newCouchDBConnector(getAddresses(), builder.username, builder.password);
+        connector = CouchDBConnector.newCouchDBConnector(getAddresses(), builder.scheme, builder.username, builder.password);
     }
 
     @Override
@@ -26,10 +26,16 @@ public class CouchDBSystem extends NoSqlDbSystem {
     public static class Builder extends NoSqlDbSystem.Builder<Builder> {
         private final String username;
         private final String password;
+        private String scheme = "http";
 
         public Builder(String username, String password) {
             this.username = username;
             this.password = password;
+        }
+
+        public Builder scheme(String scheme) {
+            this.scheme = scheme;
+            return this;
         }
 
         @Override

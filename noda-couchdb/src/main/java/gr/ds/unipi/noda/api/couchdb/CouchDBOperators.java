@@ -24,6 +24,11 @@ final class CouchDBOperators extends NoSqlDbOperators {
         viewBuilder = new View.Builder(dataCollection);
     }
 
+    private CouchDBOperators(CouchDBOperators self, View.Builder viewBuilder) {
+        super(self.getNoSqlDbConnector(), self.getDataCollection(), self.getSparkSession());
+        this.viewBuilder = viewBuilder;
+    }
+
     static CouchDBOperators newCouchDBOperators(CouchDBConnector noSqlDbConnector, String dataCollection, SparkSession sparkSession) {
         return new CouchDBOperators(noSqlDbConnector, dataCollection, sparkSession);
     }
@@ -31,38 +36,43 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators filter(FilterOperator filterOperator, FilterOperator... filterOperators) {
+        View.Builder builder = new View.Builder(viewBuilder);
+
         Stream.concat(Stream.of(filterOperator), Stream.of(filterOperators))
                 .map(op -> (String) op.getOperatorExpression())
-                .forEach(viewBuilder::filter);
+                .forEach(builder::filter);
 
-        return this;
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
     public CouchDBOperators groupBy(String fieldName, String... fieldNames) {
-        Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).forEach(viewBuilder::groupField);
-        viewBuilder.group(true);
+        View.Builder builder = new View.Builder(viewBuilder);
 
-        return this;
+        Stream.concat(Stream.of(fieldName), Stream.of(fieldNames)).forEach(builder::groupField);
+        builder.group(true).reduce(true);
+
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators aggregate(AggregateOperator aggregateOperator, AggregateOperator... aggregateOperators) {
+        View.Builder builder = new View.Builder(viewBuilder);
+
         Stream.concat(Stream.of(aggregateOperator), Stream.of(aggregateOperators)).forEach(op -> {
             String[] expression = (String[]) op.getOperatorExpression();
             assert expression.length == 2;
-            viewBuilder.reduceExpression(op.getAlias(), expression[0], expression[1]).valueField(op.getFieldName());
+            builder.reduceExpression(op.getAlias(), expression[0], expression[1]).valueField(op.getFieldName());
         });
 
-        viewBuilder.reduce(true);
+        builder.reduce(true);
 
-        return this;
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
     public CouchDBOperators distinct(String fieldName) {
-        viewBuilder.group(true).reduce(true);
         return groupBy(fieldName);
     }
 
@@ -181,22 +191,26 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators sort(SortOperator sortOperator, SortOperator... sortingOperators) {
+        View.Builder builder = new View.Builder(viewBuilder);
+
         Stream.concat(Stream.of(sortOperator), Stream.of(sortingOperators))
                 .map(op -> ((Map) op.getOperatorExpression()))
-                .forEach(viewBuilder::sortFields);
+                .forEach(builder::sortFields);
 
-        return this;
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
     public CouchDBOperators limit(int limit) {
-        viewBuilder.limit(limit);
-        return this;
+        View.Builder builder = new View.Builder(viewBuilder);
+        builder.limit(limit);
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
     public CouchDBOperators project(String fieldName, String... fieldNames) {
-        return this;
+        View.Builder builder = new View.Builder(viewBuilder);
+        return new CouchDBOperators(this, builder);
     }
 
     @Override
@@ -207,6 +221,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
     @Override
     @SuppressWarnings("rawtypes")
     public CouchDBOperators join(NoSqlDbOperators noSqlDbOperators, JoinOperator jo) {
-        return this;
+        View.Builder builder = new View.Builder(viewBuilder);
+        return new CouchDBOperators(this, builder);
     }
 }

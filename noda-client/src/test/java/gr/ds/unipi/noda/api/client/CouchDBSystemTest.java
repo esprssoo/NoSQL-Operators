@@ -3,39 +3,62 @@ package gr.ds.unipi.noda.api.client;
 import gr.ds.unipi.noda.api.core.nosqldb.NoSqlDbOperators;
 import org.junit.Test;
 
+import static gr.ds.unipi.noda.api.core.operators.AggregateOperators.sum;
 import static gr.ds.unipi.noda.api.core.operators.FilterOperators.*;
 import static gr.ds.unipi.noda.api.core.operators.SortOperators.desc;
 
 public class CouchDBSystemTest {
-    private NoSqlDbOperators getOperators(String db) {
-        return NoSqlDbSystem.CouchDB().Builder("admin", "password").host("localhost").port(5984).build().operateOn(db);
+    private NoSqlDbSystem getSystem() {
+        return NoSqlDbSystem.CouchDB().Builder("admin", "password").host("localhost").port(5984).build();
     }
 
     @Test
     public void couchdbTest() {
-        NoSqlDbOperators noSqlDbOperators = getOperators("animals");
-
-        noSqlDbOperators.filter(or(gte("weight", 100), lt("height", 10)))
+        getSystem().operateOn("animals")
+                .filter(or(gte("weight", 100), lt("height", 10)))
                 .filter(ne("name", "Rabbit"))
                 .sort(desc("height"), desc("weight"))
                 .printScreen();
-
-//        noSqlDbOperators.filter(gte("weight", 0))
-//                .filter(eq("name", "Tiger"))
-//                .aggregate(sum("weight"), avg("height").as("average_height"))
-//                .groupBy("species")
-//                .printScreen();
     }
 
     @Test
-    public void countWorks() {
-        NoSqlDbOperators noSqlDbOperators = getOperators("animals");
+    public void simpleFilterTest() {
+        NoSqlDbSystem noSqlDbSystem = getSystem();
+        noSqlDbSystem.operateOn("animals").filter(gte("weight", 100)).printScreen();
+        noSqlDbSystem.closeConnection();
+    }
 
-        long startTime = System.currentTimeMillis();
-        int count = noSqlDbOperators.count();
-        long elapsed = System.currentTimeMillis() - startTime;
+    @Test
+    public void simpleGroupByTest() {
+        NoSqlDbSystem noSqlDbSystem = getSystem();
+        noSqlDbSystem.operateOn("animals").groupBy("species").printScreen();
+        noSqlDbSystem.closeConnection();
+    }
 
-        assert count == 4;
-        System.out.println("countWorks() took " + elapsed + "ms");
+    @Test
+    public void groupByCombinedWithAggregationTest() {
+        NoSqlDbSystem noSqlDbSystem = getSystem();
+        noSqlDbSystem.operateOn("animals").groupBy("species").aggregate(sum("weight")).printScreen();
+        noSqlDbSystem.closeConnection();
+    }
+
+    @Test
+    public void logicalOperatorTest() {
+        NoSqlDbSystem noSqlDbSystem = getSystem();
+        noSqlDbSystem.operateOn("animals").filter(and(gte("weight", 200), lte("weight", 500))).printScreen();
+        noSqlDbSystem.closeConnection();
+    }
+
+    @Test
+    public void stucturalSharingTest() {
+        NoSqlDbSystem noSqlDbSystem = getSystem();
+        NoSqlDbOperators noSqlDbOperators = noSqlDbSystem.operateOn("animals");
+
+
+        NoSqlDbOperators var = noSqlDbOperators.filter(and(gte("weight", 200), lte("weight", 500)));
+        var = noSqlDbOperators.groupBy("weight");
+        var.printScreen();
+
+        noSqlDbSystem.closeConnection();
     }
 }

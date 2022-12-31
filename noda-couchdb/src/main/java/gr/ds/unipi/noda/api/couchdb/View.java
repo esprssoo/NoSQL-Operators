@@ -66,18 +66,31 @@ final class View {
     @SuppressWarnings("UnusedReturnValue")
     public static class Builder {
         private final String database;
-        private final List<String> filters = new ArrayList<>();
-        private final Set<String> groupFields = new HashSet<>();
-        private final Map<String, String> sortFields = new HashMap<>();
-        private final Set<String> valueFields = new HashSet<>();
-        private final Map<String, String> reduceExpressions = new HashMap<>();
-        private final Map<String, String> rereduceExpressions = new HashMap<>();
+        private List<String> filters = new ArrayList<>();
+        private Set<String> groupFields = new HashSet<>();
+        private Map<String, String> sortFields = new HashMap<>();
+        private Set<String> valueFields = new HashSet<>();
+        private Map<String, String> reduceExpressions = new HashMap<>();
+        private Map<String, String> rereduceExpressions = new HashMap<>();
         private boolean isReduce = false;
         private boolean isGroup = false;
         private int limit = -1;
 
         public Builder(String database) {
             this.database = database;
+        }
+
+        public Builder(Builder self) {
+            this.database = self.database;
+            this.filters = new ArrayList<>(self.filters);
+            this.groupFields = new HashSet<>(self.groupFields);
+            this.sortFields = new HashMap<>(self.sortFields);
+            this.valueFields = new HashSet<>(self.valueFields);
+            this.reduceExpressions = new HashMap<>(self.reduceExpressions);
+            this.rereduceExpressions = new HashMap<>(self.rereduceExpressions);
+            this.isGroup = self.isGroup;
+            this.isReduce = self.isReduce;
+            this.limit = self.limit;
         }
 
         public View build() {

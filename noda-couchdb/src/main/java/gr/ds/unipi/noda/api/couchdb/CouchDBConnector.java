@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector.CouchDBConnection> {
     private final static MediaType JSON = MediaType.get("application/json; charset=utf-8");
@@ -28,11 +29,11 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
         this.credentials = credentials;
     }
 
-    public static CouchDBConnector newCouchDBConnector(List<Map.Entry<String, Integer>> addresses, String username, String password) {
+    public static CouchDBConnector newCouchDBConnector(List<Map.Entry<String, Integer>> addresses, String scheme, String username, String password) {
         String host = addresses.get(0).getKey();
         int port = addresses.get(0).getValue();
 
-        HttpUrl serverUrl = new HttpUrl.Builder().scheme("http").host(host).port(port).build();
+        HttpUrl serverUrl = new HttpUrl.Builder().scheme(scheme).host(host).port(port).build();
         String credentials = Credentials.basic(username, password);
 
         return new CouchDBConnector(serverUrl, credentials);
@@ -49,12 +50,15 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
 
     @Override
     public int hashCode() {
-        return 0;
+        return Objects.hash(serverUrl, credentials);
     }
 
     @Override
     public boolean equals(Object o) {
-        return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CouchDBConnector connector = (CouchDBConnector) o;
+        return Objects.equals(serverUrl, connector.serverUrl) && Objects.equals(credentials, connector.credentials);
     }
 
     static class CouchDBConnection {
