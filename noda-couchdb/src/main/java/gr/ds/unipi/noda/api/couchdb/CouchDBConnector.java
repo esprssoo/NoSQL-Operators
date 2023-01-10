@@ -12,7 +12,6 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,7 +72,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
         public View.Response execute(View view) {
             try {
                 // Create or update the internal design document if it doesn't exist
-                updateDesignDoc(view);
+                ensureDesignDocIsUpdated(view);
             } catch (IOException e) {
                 e.printStackTrace();
                 return null;
@@ -81,25 +80,9 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
 
             HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda", "_view", view.getName());
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("reduce", view.isReduce());
-            body.put("include_docs", !view.isReduce());
-            body.put("descending", view.isDescending());
-            body.put("group", view.isReduce() && view.isGroup());
-
-            int groupLevel = view.getGroupLevel();
-            if (groupLevel > 0 && view.isGroup()) {
-                body.put("group_level", groupLevel);
-            }
-
-            int limit = view.getLimit();
-            if (limit >= 0) {
-                body.put("limit", limit);
-            }
-
             Request request = new Request.Builder().url(url)
                     .headers(headers)
-                    .post(RequestBody.create(GSON.toJson(body), JSON))
+                    .post(RequestBody.create(GSON.toJson(view.getRequestBody()), JSON))
                     .build();
 
             try (Response res = CLIENT.newCall(request).execute()) {
@@ -132,14 +115,14 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             }
         }
 
-        private void updateDesignDoc(View view) throws IOException {
+        private void ensureDesignDocIsUpdated(View view) throws IOException {
             HttpUrl url = resolveUrl(view.getDatabase(), "_design", "noda");
 
             DesignDoc designDoc = getDesignDoc(view.getDatabase());
             if (designDoc == null) {
-                designDoc = new DesignDoc(view);
+                designDoc = DesignDoc.createDesignDoc(view);
             } else if (!designDoc.views.containsKey(view.getName())) {
-                designDoc.views.put(view.getName(), view);
+                designDoc.addView(view);
             } else {
                 return;
             }

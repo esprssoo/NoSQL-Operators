@@ -11,28 +11,28 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 final class View {
-    transient private final String database;
-    transient private final String name;
-    transient private final boolean isGroup;
-    transient private final boolean isReduce;
-    transient private final int groupLevel;
-    transient private final int limit;
-    transient private final boolean descending;
-    @SuppressWarnings({"FieldCanBeLocal", "unused"})
-    private final String map;
-    @SuppressWarnings({"FieldCanBeLocal", "unused"})
-    private final String reduce;
+    private final String database;
+    private final String name;
+    private final String mapFunction;
+    private final String reduceFunction;
+    private final Map<String, Object> requestBody;
 
-    private View(String database, String map, String reduce, boolean isReduce, boolean isGroup, int groupLevel, int limit, boolean descending) {
-        this.database = database;
-        this.name = Integer.toString(map.hashCode() + reduce.hashCode());
-        this.map = map;
-        this.reduce = reduce;
-        this.isReduce = isReduce;
-        this.groupLevel = groupLevel;
-        this.isGroup = isGroup;
-        this.limit = limit;
-        this.descending = descending;
+    private View(Builder builder, String map, String reduce, boolean sortDescending) {
+        database = builder.database;
+        name = Integer.toString(map.hashCode() + reduce.hashCode());
+        mapFunction = map;
+        reduceFunction = reduce;
+        requestBody = new HashMap<>();
+        requestBody.put("reduce", builder.isReduce);
+        requestBody.put("include_docs", !builder.isReduce);
+        requestBody.put("descending", sortDescending);
+        if (builder.limit >= 0) {
+            requestBody.put("limit", builder.limit);
+        }
+        if (builder.isGroup) {
+            requestBody.put("group", true);
+            requestBody.put("group_level", builder.groupFields.size());
+        }
     }
 
     public String getDatabase() {
@@ -43,24 +43,16 @@ final class View {
         return name;
     }
 
-    public boolean isGroup() {
-        return isGroup;
+    public String getMapFunction() {
+        return mapFunction;
     }
 
-    public int getGroupLevel() {
-        return groupLevel;
+    public String getReduceFunction() {
+        return reduceFunction;
     }
 
-    public boolean isReduce() {
-        return isReduce;
-    }
-
-    public int getLimit() {
-        return limit;
-    }
-
-    public boolean isDescending() {
-        return descending;
+    public Map<String, Object> getRequestBody() {
+        return requestBody;
     }
 
     @SuppressWarnings("UnusedReturnValue")
@@ -156,7 +148,7 @@ final class View {
             reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v[0]).append(','));
             reduce.append("} } }");
 
-            return new View(database, map.toString(), reduce.toString(), isReduce, isGroup, groupFields.size(), limit, sortDescending);
+            return new View(this, map.toString(), reduce.toString(), sortDescending);
         }
 
         public Builder filter(String filter) {

@@ -188,6 +188,10 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
     @Override
     public CouchDBOperators limit(int limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must be positive or 0");
+        }
+
         View.Builder builder = new View.Builder(viewBuilder);
         builder.limit(limit);
         return new CouchDBOperators(this, builder);
