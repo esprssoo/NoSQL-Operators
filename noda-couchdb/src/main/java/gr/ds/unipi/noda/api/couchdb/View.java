@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 final class View {
     transient private final String database;
@@ -70,8 +71,7 @@ final class View {
         private Map<String, String> sortFields = new HashMap<>();
         private Set<String> valueFields = new HashSet<>();
         private Set<String> projectFields = new HashSet<>();
-        private Map<String, String> reduceExpressions = new HashMap<>();
-        private Map<String, String> rereduceExpressions = new HashMap<>();
+        private Map<String, String[]> reduceExpressions = new HashMap<>();
         private boolean isReduce = false;
         private boolean isGroup = false;
         private int limit = -1;
@@ -88,7 +88,6 @@ final class View {
             this.valueFields = new HashSet<>(self.valueFields);
             this.projectFields = new HashSet<>(self.projectFields);
             this.reduceExpressions = new HashMap<>(self.reduceExpressions);
-            this.rereduceExpressions = new HashMap<>(self.rereduceExpressions);
             this.isGroup = self.isGroup;
             this.isReduce = self.isReduce;
             this.limit = self.limit;
@@ -96,23 +95,18 @@ final class View {
 
         public View build() {
             ArrayList<String> keys = new ArrayList<>();
+            boolean sortDescending = false;
 
-            int groupLevel = 0;
-            if (!groupFields.isEmpty()) {
-                for (String field : groupFields) {
-                    keys.add("doc[\"" + field + "\"]");
-                }
-                groupLevel = groupFields.size();
-            }
-
-            boolean descending = false;
-            if (!sortFields.isEmpty()) {
+            if (isGroup) {
+                groupFields.forEach(field -> keys.add("doc[\"" + field + "\"]"));
+            } else {
+                // NOTE: Sort does not work together with Group By
                 for (Map.Entry<String, String> entry : sortFields.entrySet()) {
-                    if (entry.getValue().equals("ascending") && descending) {
+                    if (entry.getValue().equals("ascending") && sortDescending) {
                         throw new IllegalStateException("Multiple sorting fields with different sort orders");
                     }
 
-                    descending = entry.getValue().equals("descending");
+                    sortDescending = entry.getValue().equals("descending");
                     keys.add("doc[\"" + entry.getKey() + "\"]");
                 }
             }
@@ -127,23 +121,19 @@ final class View {
             } else if (keys.size() == 1) {
                 map.append(keys.get(0));
             } else {
-                map.append(keys);
+                map.append("[").append(String.join(",", keys)).append("]");
             }
             map.append(",");
             if (valueFields.size() == 0 && projectFields.size() == 0) {
                 map.append("null");
             } else {
                 map.append("{");
-                valueFields.forEach(field -> map.append('"')
-                        .append(field)
-                        .append("\": doc[\"")
-                        .append(field)
-                        .append("\"],"));
-                projectFields.forEach(field -> map.append('"')
-                        .append(field)
-                        .append("\": doc[\"")
-                        .append(field)
-                        .append("\"],"));
+                Stream.concat(valueFields.stream(), projectFields.stream())
+                        .forEach(field -> map.append("\"")
+                                .append(field)
+                                .append("\": doc[\"")
+                                .append(field)
+                                .append("\"],"));
                 map.append("}");
             }
             map.append(")}");
@@ -156,17 +146,17 @@ final class View {
                     .append("\": values.flatMap(a => a[\"")
                     .append(field)
                     .append("\"]),"));
-            rereduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
+            reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v[1]).append(','));
             reduce.append("} } else { return {");
             projectFields.forEach(field -> reduce.append('"')
                     .append(field)
                     .append("\": values.map(a => a[\"")
                     .append(field)
                     .append("\"]),"));
-            reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v).append(','));
+            reduceExpressions.forEach((k, v) -> reduce.append('"').append(k).append("\": ").append(v[0]).append(','));
             reduce.append("} } }");
 
-            return new View(database, map.toString(), reduce.toString(), isReduce, isGroup, groupLevel, limit, descending);
+            return new View(database, map.toString(), reduce.toString(), isReduce, isGroup, groupFields.size(), limit, sortDescending);
         }
 
         public Builder filter(String filter) {
@@ -179,13 +169,13 @@ final class View {
             return this;
         }
 
-        public Builder group(boolean group) {
-            isGroup = group;
+        public Builder group(boolean isGroup) {
+            this.isGroup = isGroup;
             return this;
         }
 
-        public Builder reduce(boolean reduce) {
-            isReduce = reduce;
+        public Builder reduce(boolean isReduce) {
+            this.isReduce = isReduce;
             return this;
         }
 
@@ -209,9 +199,9 @@ final class View {
             return this;
         }
 
-        public Builder reduceExpression(String alias, String reduceExpression, String rereduceExpression) {
-            this.reduceExpressions.put(alias, reduceExpression);
-            this.rereduceExpressions.put(alias, rereduceExpression);
+        public Builder reduceExpressions(String alias, String[] reduceExpressions) {
+            assert reduceExpressions.length == 2;
+            this.reduceExpressions.put(alias, reduceExpressions);
             return this;
         }
     }

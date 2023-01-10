@@ -88,7 +88,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             body.put("group", view.isReduce() && view.isGroup());
 
             int groupLevel = view.getGroupLevel();
-            if (groupLevel > 0) {
+            if (groupLevel > 0 && view.isGroup()) {
                 body.put("group_level", groupLevel);
             }
 

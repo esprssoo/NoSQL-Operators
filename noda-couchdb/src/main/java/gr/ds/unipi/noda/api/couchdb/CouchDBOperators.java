@@ -60,11 +60,9 @@ final class CouchDBOperators extends NoSqlDbOperators {
     public CouchDBOperators aggregate(AggregateOperator aggregateOperator, AggregateOperator... aggregateOperators) {
         View.Builder builder = new View.Builder(viewBuilder);
 
-        Stream.concat(Stream.of(aggregateOperator), Stream.of(aggregateOperators)).forEach(op -> {
-            String[] expression = (String[]) op.getOperatorExpression();
-            assert expression.length == 2;
-            builder.reduceExpression(op.getAlias(), expression[0], expression[1]).valueField(op.getFieldName());
-        });
+        Stream.concat(Stream.of(aggregateOperator), Stream.of(aggregateOperators))
+                .forEach(op -> builder.reduceExpressions(op.getAlias(), (String[]) op.getOperatorExpression())
+                        .valueField(op.getFieldName()));
 
         builder.reduce(true);
 
@@ -89,10 +87,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMax(fieldName);
 
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
-        assert operatorExpression.length == 2;
-
-        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+        viewBuilder.reduceExpressions(operator.getAlias(), (String[]) operator.getOperatorExpression())
                 .valueField(fieldName)
                 .reduce(true)
                 .group(false);
@@ -112,10 +107,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorMin(fieldName);
 
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
-        assert operatorExpression.length == 2;
-
-        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+        viewBuilder.reduceExpressions(operator.getAlias(), (String[]) operator.getOperatorExpression())
                 .valueField(fieldName)
                 .reduce(true)
                 .group(false);
@@ -135,10 +127,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorSum(fieldName);
 
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
-        assert operatorExpression.length == 2;
-
-        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+        viewBuilder.reduceExpressions(operator.getAlias(), (String[]) operator.getOperatorExpression())
                 .valueField(fieldName)
                 .reduce(true)
                 .group(false);
@@ -158,10 +147,7 @@ final class CouchDBOperators extends NoSqlDbOperators {
 
         AggregateOperator<?> operator = AggregateOperator.aggregateOperator.newOperatorAvg(fieldName);
 
-        String[] operatorExpression = (String[]) operator.getOperatorExpression();
-        assert operatorExpression.length == 2;
-
-        viewBuilder.reduceExpression(operator.getAlias(), operatorExpression[0], operatorExpression[1])
+        viewBuilder.reduceExpressions(operator.getAlias(), (String[]) operator.getOperatorExpression())
                 .valueField(fieldName)
                 .reduce(true)
                 .group(false);
