@@ -15,34 +15,42 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector.CouchDBConnection> {
     private final static MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private final static Gson GSON = new Gson();
     private final HttpUrl serverUrl;
     private final String credentials;
+    private final int connectTimeout;
+    private final int readTimeout;
 
-    private CouchDBConnector(HttpUrl serverUrl, String credentials) {
+    private CouchDBConnector(HttpUrl serverUrl, String credentials, int connectTimeout, int readTimeout) {
         this.serverUrl = serverUrl;
         this.credentials = credentials;
+        this.connectTimeout = connectTimeout;
+        this.readTimeout = readTimeout;
     }
 
-    public static CouchDBConnector newCouchDBConnector(List<Map.Entry<String, Integer>> addresses, String scheme, String username, String password) {
+    public static CouchDBConnector newCouchDBConnector(List<Map.Entry<String, Integer>> addresses, String scheme, String username, String password, int connectTimeout, int readTimeout) {
         String host = addresses.get(0).getKey();
         int port = addresses.get(0).getValue();
 
         HttpUrl serverUrl = new HttpUrl.Builder().scheme(scheme).host(host).port(port).build();
         String credentials = Credentials.basic(username, password);
 
-        return new CouchDBConnector(serverUrl, credentials);
+        return new CouchDBConnector(serverUrl, credentials, connectTimeout, readTimeout);
     }
 
     @Override
     public CouchDBConnection createConnection() {
         OkHttpClient client = new OkHttpClient.Builder().authenticator((route, response) -> response.request()
-                .newBuilder()
-                .header("authorization", credentials)
-                .build()).build();
+                        .newBuilder()
+                        .header("authorization", credentials)
+                        .build())
+                .connectTimeout(connectTimeout, TimeUnit.SECONDS)
+                .readTimeout(readTimeout, TimeUnit.SECONDS)
+                .build();
         return new CouchDBConnection(client, serverUrl);
     }
 

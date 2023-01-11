@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -19,7 +20,7 @@ final class View {
 
     private View(Builder builder, String map, String reduce, boolean sortDescending) {
         database = builder.database;
-        name = Integer.toString(map.hashCode() + reduce.hashCode());
+        name = Integer.toString(Objects.hash(map, reduce));
         mapFunction = map;
         reduceFunction = reduce;
         requestBody = new HashMap<>();
@@ -110,8 +111,6 @@ final class View {
                     .append("emit(");
             if (keys.size() == 0) {
                 map.append("null");
-            } else if (keys.size() == 1) {
-                map.append(keys.get(0));
             } else {
                 map.append("[").append(String.join(",", keys)).append("]");
             }
