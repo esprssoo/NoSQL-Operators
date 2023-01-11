@@ -19,7 +19,6 @@ import java.util.Objects;
 public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector.CouchDBConnection> {
     private final static MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private final static Gson GSON = new Gson();
-    private static OkHttpClient CLIENT;
     private final HttpUrl serverUrl;
     private final String credentials;
 
@@ -40,11 +39,11 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
 
     @Override
     public CouchDBConnection createConnection() {
-        CLIENT = new OkHttpClient.Builder().authenticator((route, response) -> response.request()
+        OkHttpClient client = new OkHttpClient.Builder().authenticator((route, response) -> response.request()
                 .newBuilder()
                 .header("authorization", credentials)
                 .build()).build();
-        return new CouchDBConnection(serverUrl);
+        return new CouchDBConnection(client, serverUrl);
     }
 
     @Override
@@ -61,10 +60,12 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
     }
 
     static class CouchDBConnection {
+        private final OkHttpClient client;
         private final HttpUrl serverUrl;
         private final Headers headers;
 
-        CouchDBConnection(HttpUrl serverUrl) {
+        CouchDBConnection(OkHttpClient client, HttpUrl serverUrl) {
+            this.client = client;
             this.serverUrl = serverUrl;
             this.headers = new Headers.Builder().add("accept", "application/json").build();
         }
@@ -85,7 +86,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
                     .post(RequestBody.create(GSON.toJson(view.getRequestBody()), JSON))
                     .build();
 
-            try (Response res = CLIENT.newCall(request).execute()) {
+            try (Response res = client.newCall(request).execute()) {
                 assert res.body() != null;
 
                 if (res.code() != 200) {
@@ -100,12 +101,16 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
             }
         }
 
+        public void close() {
+            client.connectionPool().evictAll();
+        }
+
         private DesignDoc getDesignDoc(String db) throws IOException {
             HttpUrl url = resolveUrl(db, "_design", "noda");
 
             Request request = new Request.Builder().url(url).headers(headers).get().build();
 
-            try (Response res = CLIENT.newCall(request).execute()) {
+            try (Response res = client.newCall(request).execute()) {
                 if (res.code() != 200) {
                     return null;
                 }
@@ -132,7 +137,7 @@ public final class CouchDBConnector implements NoSqlDbConnector<CouchDBConnector
                     .put(RequestBody.create(GSON.toJson(designDoc), JSON))
                     .build();
 
-            try (Response res = CLIENT.newCall(request).execute()) {
+            try (Response res = client.newCall(request).execute()) {
                 if (res.code() != 201) {
                     assert res.body() != null;
                     throw new RuntimeException("Failed to create design document. " + res.body().string());

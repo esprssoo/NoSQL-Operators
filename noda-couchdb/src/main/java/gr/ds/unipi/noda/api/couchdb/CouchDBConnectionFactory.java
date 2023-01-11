@@ -34,27 +34,27 @@ public final class CouchDBConnectionFactory extends NoSqlConnectionFactory {
 
     @Override
     public NoSqlDbInserts noSqlDbInserts(NoSqlDbConnector connector, String s) {
-        return null;
+        return CouchDBInserts.newCouchDbInserts((CouchDBConnector) connector, s);
     }
 
     @Override
     public NoSqlDbUpdates noSqlDbUpdates(NoSqlDbConnector connector, String s) {
-        return null;
+        return CouchDBUpdates.newCouchDbUpdates((CouchDBConnector) connector, s);
     }
 
     @Override
     public NoSqlDbDeletes noSqlDbDeletes(NoSqlDbConnector connector, String s) {
-        return null;
+        return CouchDBDeletes.newCouchDbDeletes((CouchDBConnector) connector, s);
     }
 
     @Override
     public void closeConnection(NoSqlDbConnector noSqlDbConnector) {
-
+        CouchDBConnectionManager.getInstance().closeConnection(noSqlDbConnector);
     }
 
     @Override
     public boolean closeConnections() {
-        return false;
+        return CouchDBConnectionManager.getInstance().closeConnections();
     }
 
     @Override

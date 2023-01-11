@@ -56,7 +56,7 @@ final class View {
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    public static class Builder {
+    static class Builder {
         private final String database;
         private List<String> filters = new ArrayList<>();
         private Set<String> groupFields = new HashSet<>();
@@ -199,7 +199,7 @@ final class View {
     }
 
     @SuppressWarnings("unused")
-    public static class Response {
+    static class Response {
         @SerializedName("total_rows")
         public Integer totalRows;
         public Integer offset;

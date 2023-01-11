@@ -17,11 +17,17 @@ final class CouchDBConnectionManager extends NoSqlDbConnectionManager<CouchDBCon
 
     @Override
     public boolean closeConnection(NoSqlDbConnector noSqlDbConnector) {
-        return false;
+        if (getConnections().containsKey(noSqlDbConnector)) {
+            getConnections().get(noSqlDbConnector).close();
+            getConnections().remove(noSqlDbConnector);
+        }
+        return true;
     }
 
     @Override
     public boolean closeConnections() {
-        return false;
+        getConnections().forEach((k, v) -> v.close());
+        getConnections().clear();
+        return true;
     }
 }
